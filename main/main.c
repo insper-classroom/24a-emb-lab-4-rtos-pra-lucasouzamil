@@ -1,6 +1,3 @@
-/*
- * LED blink with FreeRTOS
- */
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
@@ -11,7 +8,7 @@
 
 #include "pico/stdlib.h"
 #include <stdio.h>
-/* 
+
 const uint BTN_1_OLED = 28;
 const uint BTN_2_OLED = 26;
 const uint BTN_3_OLED = 27;
@@ -19,9 +16,9 @@ const uint BTN_3_OLED = 27;
 const uint LED_1_OLED = 20;
 const uint LED_2_OLED = 21;
 const uint LED_3_OLED = 22;
- */
-const int TRIG_PIN = 14;
-const int ECHO_PIN = 15;
+
+const int TRIG_PIN = 17;
+const int ECHO_PIN = 16;
 
 SemaphoreHandle_t xSemaphoreTrigger;
 QueueHandle_t xQueueTime,xQueueDistance;
@@ -63,7 +60,8 @@ void oled1_btn_led_init(void) {
     gpio_set_dir(BTN_3_OLED, GPIO_IN);
     gpio_pull_up(BTN_3_OLED);
 }
-
+ */
+/* 
 void oled1_demo_1(void *p) {
     printf("Inicializando Driver\n");
     ssd1306_init();
@@ -114,7 +112,8 @@ void oled1_demo_1(void *p) {
         }
     }
 }
-
+ */
+/* 
 void oled1_demo_2(void *p) {
     printf("Inicializando Driver\n");
     ssd1306_init();
@@ -122,9 +121,9 @@ void oled1_demo_2(void *p) {
     printf("Inicializando GLX\n");
     ssd1306_t disp;
     gfx_init(&disp, 128, 32);
-
+    
     printf("Inicializando btn and LEDs\n");
-    oled1_btn_led_init();
+    oled1_btn_led_init(); 
 
     while (1) {
 
@@ -144,7 +143,7 @@ void oled1_demo_2(void *p) {
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 }
-  */
+*/
 void trigger_task(void *p){
     gpio_init(TRIG_PIN);
     gpio_set_dir(TRIG_PIN, GPIO_OUT);
@@ -152,10 +151,10 @@ void trigger_task(void *p){
     while (true){
         gpio_put(TRIG_PIN, 1);
         //busy_wait_us_32(10);
-        vTaskDelay(pdMS_TO_TICKS(0.01));
+        vTaskDelay(pdMS_TO_TICKS(1));
         gpio_put(TRIG_PIN, 0);
         xSemaphoreGive(xSemaphoreTrigger);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
@@ -167,32 +166,55 @@ void echo_task(void *p){
     const int V_SOM = 343000; // cm/s
     uint32_t dt;
     while (true) {
-        if (xQueueReceive(xQueueTime, &dt,  portMAX_DELAY)) {
+        if (xQueueReceive(xQueueTime, &dt,  0)) {
             double dif = (dt) / 10000000.0;
             double distance = (V_SOM * dif) / 2.0; 
-            xQueueSend(xQueueDistance, &distance, portMAX_DELAY);
+            xQueueSend(xQueueDistance, &distance, 0);
         }
     }
 }
 
 void oled_task(void *p){
-    /* printf("Inicializando Driver\n");
+    
+    printf("Inicializando Driver\n");
     ssd1306_init();
 
     printf("Inicializando GLX\n");
     ssd1306_t disp;
     gfx_init(&disp, 128, 32);
-
+   
+    /* 
     printf("Inicializando btn and LEDs\n");
-    oled1_btn_led_init(); */
+    oled1_btn_led_init();  
+    */
 
     double distance;
+    char distance_str[20]; 
     while(true){
-        if (xSemaphoreTake(xSemaphoreTrigger, portMAX_DELAY) == pdTRUE) {
-            if (xQueueReceive(xQueueDistance, &distance,  pdMS_TO_TICKS(1000))) {
+        if (xSemaphoreTake(xSemaphoreTrigger, 0) == pdTRUE) {
+            if (xQueueReceive(xQueueDistance, &distance,  0)) {
                 printf("Distancia: %f\n\n", distance);
+                snprintf(distance_str, sizeof(distance_str), "%.2f cm", distance);
+
+                gfx_clear_buffer(&disp);
+                gfx_draw_string(&disp, 0, 0, 1, "Distancia: ");
+                gfx_draw_string(&disp, 0, 10, 1, distance_str);
+
+                float scale = 1.5; // Mapeia 1 cm para 0.64 pixels
+                int bar_length = (int)(distance * scale); // Aplica o fator de escala diretamente à distância em cm
+                if(bar_length > 128) bar_length = 128; // Limita o comprimento da barra ao máximo da tela
+                gfx_draw_line(&disp, 0, 20, bar_length, 20);
+                gfx_show(&disp);
             } else {
                 printf("Distancia: [FALHA]\n\n");
+
+                // Limpar o buffer do display
+                gfx_clear_buffer(&disp);
+
+                // Desenhar o texto no buffer do display
+                gfx_draw_string(&disp, 0, 0, 1, "Distancia: ");
+                gfx_draw_string(&disp, 0, 10, 1, "[FALHA]");
+                gfx_show(&disp);
             }
        } 
     }
